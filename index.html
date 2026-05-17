@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mohymen Taher — Mechatronics & IT Specialist</title>
 <link rel="icon" type="image/png" href="favicon.png">
+
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@300;400;600&family=Space+Grotesk:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -467,7 +468,7 @@
   .contact-link:hover { color: var(--cyan); border-color: var(--cyan); background: rgba(0,245,255,0.05); transform: translateY(-2px); }
   .contact-link span { font-size: 1rem; }
 
-  /* FOOTER */
+  /* FOOTER & SECRET BUTTON */
   footer {
     border-top: 1px solid rgba(255,255,255,0.05);
     padding: 1.5rem 3rem;
@@ -480,6 +481,39 @@
     color: #2a3040;
   }
   footer p span { color: var(--cyan); }
+  
+  .secret-heart {
+    background: none; border: none; 
+    color: #2a3040; font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem; cursor: pointer; 
+    transition: color 0.3s, text-shadow 0.3s;
+  }
+  .secret-heart:hover { color: var(--orange); text-shadow: 0 0 10px var(--orange); }
+
+  /* MINI GAME MODAL */
+  .game-modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(4,6,15,0.95); backdrop-filter: blur(8px);
+    z-index: 2000; display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+  }
+  .game-modal.active { opacity: 1; pointer-events: auto; }
+  .game-content {
+    background: var(--dark2); border: 1px solid var(--cyan);
+    padding: 2rem; box-shadow: 0 0 40px rgba(0,245,255,0.15);
+    text-align: center; position: relative;
+  }
+  .game-header {
+    font-family: 'Orbitron', monospace; color: var(--cyan);
+    margin-bottom: 1rem; display: flex; justify-content: space-between;
+    letter-spacing: 2px; font-weight: 700;
+  }
+  #close-game { color: var(--orange); cursor: pointer; transition: 0.2s; }
+  #close-game:hover { text-shadow: 0 0 10px var(--orange); }
+  #game-canvas { border: 1px solid rgba(0,245,255,0.2); background: var(--dark); box-shadow: inset 0 0 20px rgba(0,0,0,0.8); }
+  .game-controls { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #5a6a80; margin-top: 1rem; }
+  .game-controls span { color: var(--cyan); }
+  #game-score { font-family: 'JetBrains Mono', monospace; color: var(--green); margin-top: 0.5rem; font-size: 0.9rem;}
 
   /* REVEAL */
   .reveal { opacity: 0; transform: translateY(30px); transition: all 0.7s cubic-bezier(0.4,0,0.2,1); }
@@ -493,6 +527,7 @@
     .avatar-area { display: none; }
     .section-inner { padding: 4rem 1.5rem; }
     .hero-cta { flex-direction: column; align-items: center; }
+    #game-canvas { width: 300px; height: 300px; }
   }
 </style>
 </head>
@@ -750,8 +785,21 @@
 
 <footer>
   <p>// <span>MOHYMEN</span> — CV 2026</p>
+  <button id="secret-btn" class="secret-heart" title="Initialize Easter Egg">&lt;3</button>
   <p>Built with <span>curiosity</span></p>
 </footer>
+
+<div id="game-modal" class="game-modal">
+  <div class="game-content">
+    <div class="game-header">
+      SYS://PACKET_TRACER 
+      <span id="close-game">[X]</span>
+    </div>
+    <canvas id="game-canvas" width="400" height="400"></canvas>
+    <div class="game-controls">Route the packet using <span>W A S D</span> or <span>Arrows</span></div>
+    <div id="game-score">Data Packets Collected: 0</div>
+  </div>
+</div>
 
 <script>
 // ── CURSOR ──
@@ -766,7 +814,7 @@ function animCursor() {
   requestAnimationFrame(animCursor);
 }
 animCursor();
-document.querySelectorAll('a,button,.skill-card,.project-card,.btn,.stat-box').forEach(el => {
+document.querySelectorAll('a,button,.skill-card,.project-card,.btn,.stat-box,#close-game').forEach(el => {
   el.addEventListener('mouseenter', () => document.body.classList.add('hovering'));
   el.addEventListener('mouseleave', () => document.body.classList.remove('hovering'));
 });
@@ -910,6 +958,146 @@ document.addEventListener('mousemove', e => {
   const hero = document.querySelector('.hero-content');
   if (hero) hero.style.transform = `translate(${xRatio*8}px, ${yRatio*5}px)`;
 });
+
+// ── MINI GAME (PACKET TRACER) ──
+const secretBtn = document.getElementById('secret-btn');
+const gameModal = document.getElementById('game-modal');
+const closeBtn = document.getElementById('close-game');
+const gCanvas = document.getElementById('game-canvas');
+const gCtx = gCanvas.getContext('2d');
+const scoreEl = document.getElementById('game-score');
+
+const gridSize = 20; 
+let snake = [{x: 10, y: 10}];
+let food = {x: 15, y: 15};
+let dx = 0, dy = 0;
+let score = 0;
+let gameLoopTimer;
+let isGameOver = false;
+let gameActive = false;
+
+secretBtn.addEventListener('click', () => {
+  gameModal.classList.add('active');
+  gameActive = true;
+  resetGame();
+  runGame();
+});
+
+closeBtn.addEventListener('click', () => {
+  gameModal.classList.remove('active');
+  gameActive = false;
+  clearTimeout(gameLoopTimer);
+});
+
+function resetGame() {
+  snake = [{x: 10, y: 10}];
+  dx = 0; dy = 0; score = 0; isGameOver = false;
+  scoreEl.innerText = `Data Packets Collected: ${score}`;
+  placeFood();
+}
+
+function placeFood() {
+  food.x = Math.floor(Math.random() * (gCanvas.width / gridSize));
+  food.y = Math.floor(Math.random() * (gCanvas.height / gridSize));
+  if(snake.some(segment => segment.x === food.x && segment.y === food.y)) placeFood();
+}
+
+document.addEventListener('keydown', e => {
+  if(!gameActive) return;
+  // Prevent page scrolling while playing
+  if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","w","a","s","d"," "].includes(e.key)) e.preventDefault();
+
+  if(isGameOver && e.key === ' ') {
+    resetGame();
+    runGame();
+    return;
+  }
+  if(isGameOver) return;
+
+  // Prevent reversing into yourself
+  if((e.key === 'ArrowUp' || e.key === 'w') && dy !== 1) { dx = 0; dy = -1; }
+  if((e.key === 'ArrowDown' || e.key === 's') && dy !== -1) { dx = 0; dy = 1; }
+  if((e.key === 'ArrowLeft' || e.key === 'a') && dx !== 1) { dx = -1; dy = 0; }
+  if((e.key === 'ArrowRight' || e.key === 'd') && dx !== -1) { dx = 1; dy = 0; }
+});
+
+function runGame() {
+  if(!gameActive) return;
+  
+  if(isGameOver) {
+    gCtx.fillStyle = 'rgba(4,6,15,0.85)';
+    gCtx.fillRect(0,0,gCanvas.width, gCanvas.height);
+    gCtx.fillStyle = '#ff6b35';
+    gCtx.font = '700 24px Orbitron';
+    gCtx.textAlign = 'center';
+    gCtx.fillText('CONNECTION LOST', 200, 180);
+    gCtx.font = '12px JetBrains Mono';
+    gCtx.fillStyle = '#6a7fa8';
+    gCtx.fillText(`Total Packets: ${score}`, 200, 215);
+    gCtx.fillStyle = '#00f5ff';
+    gCtx.fillText(`[ Press SPACE to Reboot ]`, 200, 240);
+    return;
+  }
+
+  gameLoopTimer = setTimeout(() => {
+    clearCanvas();
+    moveSnake();
+    if(!isGameOver) {
+      drawFood();
+      drawSnake();
+    }
+    runGame();
+  }, 100);
+}
+
+function clearCanvas() {
+  gCtx.fillStyle = '#04060f';
+  gCtx.fillRect(0, 0, gCanvas.width, gCanvas.height);
+}
+
+function drawSnake() {
+  snake.forEach((segment, index) => {
+    gCtx.fillStyle = index === 0 ? '#39ff14' : '#00f5ff';
+    gCtx.shadowBlur = 10;
+    gCtx.shadowColor = gCtx.fillStyle;
+    gCtx.fillRect(segment.x * gridSize + 1, segment.y * gridSize + 1, gridSize - 2, gridSize - 2);
+    gCtx.shadowBlur = 0;
+  });
+}
+
+function drawFood() {
+  gCtx.fillStyle = '#ff6b35';
+  gCtx.shadowBlur = 15;
+  gCtx.shadowColor = '#ff6b35';
+  gCtx.fillRect(food.x * gridSize + 2, food.y * gridSize + 2, gridSize - 4, gridSize - 4);
+  gCtx.shadowBlur = 0;
+}
+
+function moveSnake() {
+  if(dx === 0 && dy === 0) return; // Wait for player input to start moving
+  
+  const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+  
+  // Wall Collision
+  if(head.x < 0 || head.x >= (gCanvas.width/gridSize) || head.y < 0 || head.y >= (gCanvas.height/gridSize)) {
+    isGameOver = true; return;
+  }
+  // Self Collision
+  for(let i = 0; i < snake.length; i++) {
+    if(head.x === snake[i].x && head.y === snake[i].y) {
+      isGameOver = true; return;
+    }
+  }
+
+  snake.unshift(head);
+  if(head.x === food.x && head.y === food.y) {
+    score++;
+    scoreEl.innerText = `Data Packets Collected: ${score}`;
+    placeFood();
+  } else {
+    snake.pop();
+  }
+}
 </script>
 </body>
 </html>
